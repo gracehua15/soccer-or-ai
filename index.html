@@ -302,7 +302,18 @@ function show(id) {
   $(id).classList.remove('hidden');
 }
 
+// Test run: ?test=1 seeds the first 4 rounds with fixed people, rest random
+const SEED_NAMES = ['Lionel Messi', 'Ilya Sutskever', 'Andrej Karpathy', 'Erling Haaland'];
+const TEST_MODE = new URLSearchParams(location.search).has('test');
+
 function pickDeck() {
+  if (TEST_MODE) {
+    const seeds = SEED_NAMES.map(n => PEOPLE.find(p => p.name === n));
+    const rest = PEOPLE.filter(p => !SEED_NAMES.includes(p.name))
+      .sort(() => Math.random() - .5)
+      .slice(0, ROUNDS - seeds.length);
+    return [...seeds, ...rest];
+  }
   const shuffled = [...PEOPLE].sort(() => Math.random() - .5);
   // guarantee a mix: at least 3 of each
   const soccer = shuffled.filter(p => p.type === 'soccer');
