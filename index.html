@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Soccer Player or AI Researcher</title>
+<script src="data.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0d1021;
+    --card: #1a1f38;
+    --card2: #232a4d;
+    --green: #2ecc71;
+    --red: #ff5964;
+    --gold: #ffd166;
+    --blue: #4cc9f0;
+    --text: #f4f6ff;
+    --muted: #9aa3c7;
+  }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(1200px 800px at 50% -10%, #1d2445 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
+  }
+
+  /* ── Top bar ── */
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 2px 10px;
+    min-height: 52px;
+  }
+  .scorebox { text-align: center; }
+  .scorebox .label { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+  .scorebox .val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  #score.pop { animation: scorepop .45s cubic-bezier(.2,2.2,.4,1); color: var(--gold); }
+  @keyframes scorepop { 40% { transform: scale(1.6); } }
+  #progressdots { display: flex; gap: 5px; justify-content: center; }
+  #progressdots span {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #333b63; transition: background .3s, transform .3s;
+  }
+  #progressdots span.right { background: var(--green); }
+  #progressdots span.wrong { background: var(--red); }
+  #progressdots span.now { background: var(--blue); transform: scale(1.35); }
+
+  /* ── Timer ── */
+  #timerwrap { display: flex; justify-content: center; margin: 4px 0 10px; height: 74px; }
+  #timerring { position: relative; width: 74px; height: 74px; }
+  #timerring svg { transform: rotate(-90deg); }
+  #timerring .track { stroke: #2a3158; }
+  #timerring .arc { stroke: var(--blue); transition: stroke .2s; stroke-linecap: round; }
+  #timerring.hurry .arc { stroke: var(--red); }
+  #timerring.hurry { animation: shake .35s infinite; }
+  @keyframes shake { 0%,100% { transform: translateX(0);} 25% { transform: translateX(-2px);} 75% { transform: translateX(2px);} }
+  #timertext {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Stage / card ── */
+  #stage { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+  #card {
+    background: linear-gradient(160deg, var(--card2), var(--card));
+    border: 1px solid #2e3765;
+    border-radius: 24px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px;
+    min-height: 280px;
+    position: relative;
+    overflow: hidden;
+  }
+  #card.enter { animation: cardin .45s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes cardin { from { transform: translateX(60px) rotate(2deg); opacity: 0; } }
+
+  #mysteryicon { font-size: 44px; animation: floaty 2.2s ease-in-out infinite; }
+  @keyframes floaty { 50% { transform: translateY(-8px) rotate(6deg); } }
+  #pname { font-size: clamp(26px, 7.5vw, 38px); font-weight: 800; line-height: 1.15; }
+  #phint { color: var(--muted); font-size: 14px; }
+
+  /* reveal contents */
+  #photowrap { position: relative; width: 148px; height: 148px; display: none; }
+  #photo {
+    width: 148px; height: 148px; border-radius: 50%; object-fit: cover; object-position: top;
+    border: 4px solid var(--gold); background: #10142a;
+    animation: photoin .55s cubic-bezier(.2,1.8,.4,1);
+  }
+  @keyframes photoin { from { transform: scale(0) rotate(-540deg); opacity: 0; } }
+  #badge {
+    position: absolute; right: -8px; bottom: -4px;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--card);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+    animation: badgein .5s .25s cubic-bezier(.2,2.4,.4,1) backwards;
+  }
+  @keyframes badgein { from { transform: scale(0); } }
+  #badge img { width: 40px; height: 40px; object-fit: contain; }
+  #verdict {
+    display: none;
+    width: 64px; height: 64px; border-radius: 50%;
+    align-items: center; justify-content: center;
+    font-size: 38px; font-weight: 900; color: #fff;
+    animation: verdictin .5s cubic-bezier(.2,2,.4,1);
+    position: absolute; top: 14px; left: 14px;
+  }
+  @keyframes verdictin { from { transform: scale(0) rotate(360deg); } }
+  #verdict.ok { background: var(--green); box-shadow: 0 0 30px rgba(46,204,113,.6); display: flex; }
+  #verdict.bad { background: var(--red); box-shadow: 0 0 30px rgba(255,89,100,.6); display: flex; }
+  #revealline { font-size: 17px; font-weight: 700; display: none; }
+  #revealline .who { color: var(--gold); }
+  #revealsub { font-size: 14px; color: var(--muted); display: none; }
+  #card.rightbg { animation: flashgreen .6s; }
+  #card.wrongbg { animation: flashred .6s; }
+  @keyframes flashgreen { 0% { box-shadow: 0 0 0 0 rgba(46,204,113,.8);} 100% { box-shadow: 0 18px 50px rgba(0,0,0,.45);} }
+  @keyframes flashred { 0% { box-shadow: 0 0 0 0 rgba(255,89,100,.8);} 100% { box-shadow: 0 18px 50px rgba(0,0,0,.45);} }
+
+  /* ── Answer buttons ── */
+  #answers { display: flex; gap: 12px; margin-top: 14px; }
+  .ansbtn {
+    flex: 1; border: none; border-radius: 20px;
+    padding: 18px 8px 16px;
+    font-size: 17px; font-weight: 800; color: #fff;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: transform .12s, opacity .2s, filter .2s;
+    box-shadow: 0 6px 0 rgba(0,0,0,.35);
+  }
+  .ansbtn .emoji { font-size: 32px; }
+  .ansbtn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+  #btnsoccer { background: linear-gradient(160deg, #2ecc71, #1a9e54); }
+  #btnai { background: linear-gradient(160deg, #7b5cff, #4834c8); }
+  #answers.locked .ansbtn { pointer-events: none; opacity: .55; filter: saturate(.5); }
+  #answers.locked .ansbtn.picked { opacity: 1; filter: none; outline: 3px solid var(--gold); }
+
+  #nextbtn {
+    display: none;
+    margin-top: 14px; border: none; border-radius: 20px;
+    padding: 16px; font-size: 18px; font-weight: 800; color: #10142a;
+    background: linear-gradient(160deg, #ffd166, #ffb347);
+    font-family: inherit; cursor: pointer;
+    box-shadow: 0 6px 0 rgba(0,0,0,.35);
+    animation: cardin .3s;
+  }
+  #nextbtn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+
+  /* ── Screens ── */
+  .screen { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 16px; padding: 10px 0; overflow-y: auto; }
+  .hidden { display: none !important; }
+  h1.title { font-size: clamp(30px, 9vw, 44px); font-weight: 900; line-height: 1.1; }
+  h1.title .vs { color: var(--gold); font-style: italic; }
+  .subtitle { color: var(--muted); font-size: 15px; max-width: 300px; line-height: 1.5; }
+  .bigbtn {
+    border: none; border-radius: 22px; padding: 18px 44px;
+    font-size: 20px; font-weight: 800; color: #10142a; font-family: inherit;
+    background: linear-gradient(160deg, #ffd166, #ffb347);
+    cursor: pointer; box-shadow: 0 6px 0 rgba(0,0,0,.35);
+  }
+  .bigbtn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+  .ghostbtn {
+    border: 2px solid #3a4374; background: transparent; color: var(--text);
+    border-radius: 22px; padding: 14px 34px; font-size: 16px; font-weight: 700;
+    font-family: inherit; cursor: pointer;
+  }
+  .introemojis { font-size: 52px; display: flex; gap: 18px; }
+  .introemojis span { animation: floaty 2s ease-in-out infinite; }
+  .introemojis span:nth-child(2) { animation-delay: .5s; }
+
+  /* results */
+  #finalscore { font-size: 60px; font-weight: 900; color: var(--gold); }
+  #finaltime { color: var(--muted); font-size: 16px; }
+  #nameentry {
+    display: flex; gap: 8px; width: 100%; max-width: 320px;
+  }
+  #playername {
+    flex: 1; border: 2px solid #3a4374; background: var(--card); color: var(--text);
+    border-radius: 14px; padding: 13px 14px; font-size: 16px; font-family: inherit;
+    outline: none;
+  }
+  #playername:focus { border-color: var(--blue); }
+
+  /* leaderboard */
+  #lbtable { width: 100%; max-width: 360px; border-collapse: collapse; }
+  #lbtable th { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 6px 8px; text-align: left; }
+  #lbtable td { padding: 10px 8px; font-size: 15px; border-top: 1px solid #2a3158; text-align: left; }
+  #lbtable td.num, #lbtable th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  #lbtable tr.me td { background: rgba(255,209,102,.12); color: var(--gold); font-weight: 800; }
+  #lbtable .medal { font-size: 17px; }
+  #lbempty { color: var(--muted); }
+
+  /* confetti */
+  .confetti {
+    position: fixed; width: 10px; height: 10px; top: -12px; z-index: 99;
+    animation: fall linear forwards; pointer-events: none;
+  }
+  @keyframes fall {
+    to { transform: translateY(105vh) rotate(720deg); opacity: .9; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- INTRO -->
+  <div id="intro" class="screen">
+    <div class="introemojis"><span>⚽</span><span>🤖</span></div>
+    <h1 class="title">Soccer Player<br><span class="vs">or</span><br>AI Researcher?</h1>
+    <button class="bigbtn" onclick="startGame()">▶ Play</button>
+    <button class="ghostbtn" onclick="showLeaderboard(null)">🏆 Leaderboard</button>
+  </div>
+
+  <!-- GAME -->
+  <div id="game" class="hidden" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+    <div id="topbar">
+      <div class="scorebox"><div class="label">Score</div><div class="val" id="score">0</div></div>
+      <div id="progressdots"></div>
+      <div class="scorebox"><div class="label">Time</div><div class="val" id="totaltime">0.0</div></div>
+    </div>
+    <div id="timerwrap">
+      <div id="timerring">
+        <svg width="74" height="74" viewBox="0 0 74 74">
+          <circle class="track" cx="37" cy="37" r="32" fill="none" stroke-width="7"/>
+          <circle class="arc" id="arc" cx="37" cy="37" r="32" fill="none" stroke-width="7"/>
+        </svg>
+        <div id="timertext">6</div>
+      </div>
+    </div>
+    <div id="stage">
+      <div id="card">
+        <div id="verdict"></div>
+        <div id="mysteryicon">🤔</div>
+        <div id="photowrap">
+          <img id="photo" alt="" referrerpolicy="no-referrer">
+          <div id="badge"></div>
+        </div>
+        <div id="pname"></div>
+        <div id="phint"></div>
+        <div id="revealline"></div>
+        <div id="revealsub"></div>
+      </div>
+      <div id="answers">
+        <button class="ansbtn" id="btnsoccer" onclick="answer('soccer')"><span class="emoji">⚽</span>Soccer Player</button>
+        <button class="ansbtn" id="btnai" onclick="answer('ai')"><span class="emoji">🤖</span>AI Researcher</button>
+      </div>
+      <button id="nextbtn" onclick="nextRound()">Next →</button>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results" class="screen hidden">
+    <div id="resultemoji" style="font-size:56px;"></div>
+    <h1 class="title" id="resulttitle">Time's up!</h1>
+    <div id="finalscore">0/10</div>
+    <div id="finaltime"></div>
+    <div id="nameentry">
+      <input id="playername" maxlength="16" placeholder="Your name" autocomplete="off">
+      <button class="bigbtn" style="padding:13px 20px; font-size:16px;" onclick="saveScore()">Save</button>
+    </div>
+    <button class="ghostbtn" onclick="showLeaderboard(null)">Skip → Leaderboard</button>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="leaderboard" class="screen hidden">
+    <h1 class="title" style="font-size:30px;">🏆 Leaderboard</h1>
+    <p class="subtitle" style="margin-top:-8px;">Points for accuracy + speed: 100 per correct answer, up to 100 more for answering fast</p>
+    <table id="lbtable"></table>
+    <div id="lbempty" class="hidden">No scores yet. Be the first!</div>
+    <button class="bigbtn" onclick="startGame()">Play Again</button>
+    <button class="ghostbtn" onclick="show('intro')">Home</button>
+  </div>
+
+</div>
+
+<script>
+const ROUNDS = 10, TIME_LIMIT = 6000;
+const BASE_PTS = 100, SPEED_PTS = 100; // correct = 100 + up to 100 speed bonus
+const CIRC = 2 * Math.PI * 32;
+document.getElementById('arc').style.strokeDasharray = CIRC;
+
+let deck = [], round = 0, score = 0, correctCount = 0, totalMs = 0, lastResult = null;
+let tStart = 0, rafId = null, answered = false;
+
+const $ = id => document.getElementById(id);
+function show(id) {
+  ['intro','game','results','leaderboard'].forEach(s => $(s).classList.add('hidden'));
+  $(id).classList.remove('hidden');
+}
+
+function pickDeck() {
+  const shuffled = [...PEOPLE].sort(() => Math.random() - .5);
+  // guarantee a mix: at least 3 of each
+  const soccer = shuffled.filter(p => p.type === 'soccer');
+  const ai = shuffled.filter(p => p.type === 'ai');
+  const nSoccer = 3 + Math.floor(Math.random() * 5); // 3..7
+  return [...soccer.slice(0, nSoccer), ...ai.slice(0, ROUNDS - nSoccer)]
+    .sort(() => Math.random() - .5);
+}
+
+function startGame() {
+  deck = pickDeck(); round = 0; score = 0; correctCount = 0; totalMs = 0;
+  $('score').textContent = '0';
+  $('totaltime').textContent = '0.0';
+  const dots = $('progressdots');
+  dots.innerHTML = '';
+  for (let i = 0; i < ROUNDS; i++) dots.appendChild(document.createElement('span'));
+  show('game');
+  startRound();
+}
+
+function startRound() {
+  answered = false;
+  const p = deck[round];
+  // reset card
+  const card = $('card');
+  card.classList.remove('rightbg','wrongbg');
+  card.classList.remove('enter'); void card.offsetWidth; card.classList.add('enter');
+  $('verdict').className = ''; $('verdict').style.display = 'none';
+  $('mysteryicon').style.display = '';
+  $('photowrap').style.display = 'none';
+  $('phint').style.display = '';
+  $('revealline').style.display = 'none';
+  $('revealsub').style.display = 'none';
+  $('pname').textContent = p.name;
+  $('answers').classList.remove('locked');
+  $('btnsoccer').classList.remove('picked');
+  $('btnai').classList.remove('picked');
+  $('nextbtn').style.display = 'none';
+  [...$('progressdots').children].forEach((d,i) => d.classList.toggle('now', i === round));
+  // preload photo
+  $('photo').src = p.photo;
+  // timer
+  tStart = performance.now();
+  tick();
+}
+
+function tick() {
+  const el = performance.now() - tStart;
+  const left = Math.max(0, TIME_LIMIT - el);
+  const secs = Math.ceil(left / 1000);
+  $('timertext').textContent = secs;
+  $('arc').style.strokeDashoffset = CIRC * (1 - left / TIME_LIMIT);
+  $('timerring').classList.toggle('hurry', left < 2000 && left > 0);
+  if (left <= 0) { timeUp(); return; }
+  rafId = requestAnimationFrame(tick);
+}
+
+function stopTimer() { cancelAnimationFrame(rafId); $('timerring').classList.remove('hurry'); }
+
+function answer(guess) {
+  if (answered) return;
+  answered = true;
+  stopTimer();
+  const elapsed = Math.min(TIME_LIMIT, performance.now() - tStart);
+  totalMs += elapsed;
+  $(guess === 'soccer' ? 'btnsoccer' : 'btnai').classList.add('picked');
+  reveal(deck[round].type === guess, elapsed);
+}
+
+function timeUp() {
+  if (answered) return;
+  answered = true;
+  stopTimer();
+  totalMs += TIME_LIMIT;
+  $('timertext').textContent = '0';
+  reveal(false, TIME_LIMIT, true);
+}
+
+function reveal(correct, elapsed, timedOut) {
+  const p = deck[round];
+  $('answers').classList.add('locked');
+  $('totaltime').textContent = (totalMs / 1000).toFixed(1);
+  let pts = 0;
+  if (correct) {
+    correctCount++;
+    pts = BASE_PTS + Math.round(SPEED_PTS * (1 - elapsed / TIME_LIMIT));
+    score += pts;
+    $('score').textContent = score;
+    $('score').classList.remove('pop'); void $('score').offsetWidth; $('score').classList.add('pop');
+    confettiBurst(24);
+  }
+  const dot = $('progressdots').children[round];
+  dot.classList.remove('now');
+  dot.classList.add(correct ? 'right' : 'wrong');
+
+  const card = $('card');
+  card.classList.add(correct ? 'rightbg' : 'wrongbg');
+  $('mysteryicon').style.display = 'none';
+  $('phint').style.display = 'none';
+  $('photowrap').style.display = 'block';
+
+  const badge = $('badge');
+  if (p.type === 'soccer') {
+    badge.textContent = p.flag;
+  } else if (p.logo) {
+    badge.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = p.logo;
+    img.onerror = () => { badge.textContent = '🎓'; };
+    badge.appendChild(img);
+  } else {
+    badge.textContent = '🕶️';
+  }
+
+  const v = $('verdict');
+  v.textContent = correct ? '✓' : '✕';
+  v.className = correct ? 'ok' : 'bad';
+  v.style.display = 'flex';
+
+  $('revealline').innerHTML = (p.type === 'soccer' ? '⚽ Soccer player' : '🤖 AI researcher') +
+    ' — <span class="who">' + p.detail + '</span>';
+  $('revealline').style.display = 'block';
+  const sub = timedOut ? "⏰ Time's up!" : (p.type === 'soccer' ? (p.team || '') : '');
+  $('revealsub').textContent = correct ? ('⚡ +' + pts + ' pts' + (sub ? ' · ' + sub : '')) : sub;
+  $('revealsub').style.display = 'block';
+
+  $('nextbtn').textContent = round === ROUNDS - 1 ? 'See Results 🏁' : 'Next →';
+  $('nextbtn').style.display = 'block';
+}
+
+function nextRound() {
+  round++;
+  if (round >= ROUNDS) return endGame();
+  startRound();
+}
+
+function endGame() {
+  lastResult = { score, correct: correctCount, ms: Math.round(totalMs) };
+  $('finalscore').textContent = score + ' pts';
+  $('finaltime').textContent = correctCount + '/' + ROUNDS + ' correct · ' + (totalMs / 1000).toFixed(1) + 's';
+  const pct = correctCount / ROUNDS;
+  $('resultemoji').textContent = pct === 1 ? '🐐' : pct >= .7 ? '🔥' : pct >= .4 ? '😅' : '🫠';
+  $('resulttitle').textContent = pct === 1 ? 'PERFECT!' : pct >= .7 ? 'Nice run!' : pct >= .4 ? 'Not bad!' : 'Rough game…';
+  $('playername').value = localStorage.getItem('spai_name') || '';
+  if (pct >= .7) confettiBurst(80);
+  show('results');
+}
+
+function getBoard() {
+  try { return JSON.parse(localStorage.getItem('spai_board') || '[]'); } catch { return []; }
+}
+
+function saveScore() {
+  const name = ($('playername').value.trim() || 'Anonymous').slice(0, 16);
+  localStorage.setItem('spai_name', name);
+  const board = getBoard();
+  const entry = { name, score: lastResult.score, correct: lastResult.correct, ms: lastResult.ms, at: Date.now() };
+  board.push(entry);
+  board.sort((a, b) => b.score - a.score || (b.correct || 0) - (a.correct || 0) || a.ms - b.ms);
+  localStorage.setItem('spai_board', JSON.stringify(board.slice(0, 50)));
+  lastResult = null;
+  showLeaderboard(entry);
+}
+
+function showLeaderboard(me) {
+  const board = getBoard();
+  const table = $('lbtable');
+  table.innerHTML = '';
+  $('lbempty').classList.toggle('hidden', board.length > 0);
+  table.classList.toggle('hidden', board.length === 0);
+  if (board.length) {
+    table.innerHTML = '<tr><th></th><th>Player</th><th class="num">Pts</th><th class="num">Right</th><th class="num">Time</th></tr>';
+    const medals = ['🥇','🥈','🥉'];
+    board.slice(0, 10).forEach((e, i) => {
+      const tr = document.createElement('tr');
+      if (me && e.at === me.at) tr.className = 'me';
+      tr.innerHTML = '<td class="medal">' + (medals[i] || (i + 1)) + '</td>' +
+        '<td>' + escapeHtml(e.name) + '</td>' +
+        '<td class="num">' + e.score + '</td>' +
+        '<td class="num">' + (e.correct != null ? e.correct + '/' + ROUNDS : '—') + '</td>' +
+        '<td class="num">' + (e.ms / 1000).toFixed(1) + 's</td>';
+      table.appendChild(tr);
+    });
+  }
+  show('leaderboard');
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function confettiBurst(n) {
+  const colors = ['#ffd166','#2ecc71','#4cc9f0','#ff5964','#7b5cff','#fff'];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animationDuration = (1.4 + Math.random() * 1.4) + 's';
+    c.style.animationDelay = (Math.random() * .3) + 's';
+    c.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
+    c.style.width = c.style.height = (6 + Math.random() * 8) + 'px';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 3200);
+  }
+}
+
+// keyboard support for desktop
+document.addEventListener('keydown', e => {
+  if ($('game').classList.contains('hidden')) return;
+  if (!answered) {
+    if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 's') answer('soccer');
+    if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'a') answer('ai');
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    nextRound();
+  }
+});
+</script>
+</body>
+</html>
