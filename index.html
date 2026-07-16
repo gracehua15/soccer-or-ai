@@ -462,34 +462,77 @@ function endGame() {
   show('results');
 }
 
-function getBoard() {
+// ── Shared leaderboard (Railway API), localStorage as offline fallback ──
+const API = 'https://soccer-or-ai-production.up.railway.app';
+let lbPoll = null;
+
+function localBoard() {
   try { return JSON.parse(localStorage.getItem('spai_board') || '[]'); } catch { return []; }
 }
 
-function saveScore() {
+async function saveScore() {
   const name = ($('playername').value.trim() || 'Anonymous').slice(0, 16);
   localStorage.setItem('spai_name', name);
-  const board = getBoard();
-  const entry = { name, score: lastResult.score, correct: lastResult.correct, ms: lastResult.ms, at: Date.now() };
-  board.push(entry);
-  board.sort((a, b) => b.score - a.score || (b.correct || 0) - (a.correct || 0) || a.ms - b.ms);
-  localStorage.setItem('spai_board', JSON.stringify(board.slice(0, 50)));
+  const entry = { name, score: lastResult.score, correct: lastResult.correct, ms: lastResult.ms };
   lastResult = null;
-  showLeaderboard(entry);
+  show('leaderboard');
+  try {
+    const r = await fetch(API + '/scores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    });
+    if (!r.ok) throw new Error('bad status');
+    const data = await r.json();
+    renderBoard(data.board, data.at);
+    startPolling(data.at);
+  } catch {
+    const board = localBoard();
+    const e = { ...entry, at: Date.now() };
+    board.push(e);
+    board.sort((a, b) => b.score - a.score || (b.correct || 0) - (a.correct || 0) || a.ms - b.ms);
+    localStorage.setItem('spai_board', JSON.stringify(board.slice(0, 50)));
+    renderBoard(board, e.at, true);
+  }
 }
 
-function showLeaderboard(me) {
-  const board = getBoard();
+async function showLeaderboard(meAt) {
+  show('leaderboard');
+  try {
+    const rows = await (await fetch(API + '/scores')).json();
+    renderBoard(rows, meAt);
+    startPolling(meAt);
+  } catch {
+    renderBoard(localBoard(), meAt, true);
+  }
+}
+
+function startPolling(meAt) {
+  clearInterval(lbPoll);
+  lbPoll = setInterval(async () => {
+    if ($('leaderboard').classList.contains('hidden')) { clearInterval(lbPoll); return; }
+    try {
+      const rows = await (await fetch(API + '/scores')).json();
+      renderBoard(rows, meAt);
+    } catch {}
+  }, 5000);
+}
+
+function renderBoard(board, meAt, offline) {
   const table = $('lbtable');
   table.innerHTML = '';
   $('lbempty').classList.toggle('hidden', board.length > 0);
+  $('lbempty').textContent = offline
+    ? "Can't reach the shared leaderboard — showing scores saved on this device."
+    : 'No scores yet. Be the first!';
   table.classList.toggle('hidden', board.length === 0);
   if (board.length) {
+    if (offline) $('lbempty').classList.remove('hidden');
     table.innerHTML = '<tr><th></th><th>Player</th><th class="num">Pts</th><th class="num">Right</th><th class="num">Time</th></tr>';
     const medals = ['🥇','🥈','🥉'];
     board.slice(0, 10).forEach((e, i) => {
       const tr = document.createElement('tr');
-      if (me && e.at === me.at) tr.className = 'me';
+      if (meAt != null && Math.round(Number(e.at)) === Math.round(Number(meAt))) tr.className = 'me';
       tr.innerHTML = '<td class="medal">' + (medals[i] || (i + 1)) + '</td>' +
         '<td>' + escapeHtml(e.name) + '</td>' +
         '<td class="num">' + e.score + '</td>' +
@@ -498,7 +541,6 @@ function showLeaderboard(me) {
       table.appendChild(tr);
     });
   }
-  show('leaderboard');
 }
 
 function escapeHtml(s) {
